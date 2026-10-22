@@ -2,6 +2,7 @@
 from pathlib import Path
 from html import escape
 import folium
+from folium.plugins import MarkerCluster, Fullscreen
 import streamlit.components.v1 as components
 import pandas as pd
 import plotly.express as px
@@ -170,9 +171,31 @@ elif page == "🗺️ 관광지 검색·지도":
         loc=df[df["지도표시"]]
         if not loc.empty:
             st.caption("지도 마커에 마우스를 올리면 관광지명·유형·주소가 표시되고, 클릭하면 상세 팝업이 열립니다.")
-            markers = loc.head(900)
-            center = [float(markers["위도"].median()), float(markers["경도"].median())]
-            m = folium.Map(location=center, zoom_start=8 if region=="전체" else 10, tiles="OpenStreetMap", control_scale=True)
+            markers = loc.head(1200)
+            # 최초 지도 범위: 전남·광주 중심. 지역 외로 너무 멀리 이동하지 않도록 제한합니다.
+            m = folium.Map(
+                location=[35.05, 126.90],
+                zoom_start=9 if region == "전체" else 10,
+                min_zoom=7,
+                max_zoom=18,
+                tiles="OpenStreetMap",
+                control_scale=True,
+                max_bounds=True,
+                min_lat=33.4, max_lat=37.0,
+                min_lon=124.8, max_lon=129.0,
+                prefer_canvas=True,
+            )
+            Fullscreen(position="topright").add_to(m)
+            clusters = MarkerCluster(
+                name="관광 콘텐츠",
+                options={
+                    "showCoverageOnHover": False,
+                    "spiderfyOnMaxZoom": True,
+                    "disableClusteringAtZoom": 13,
+                    "maxClusterRadius": 55,
+                    "zoomToBoundsOnClick": True,
+                },
+            ).add_to(m)
             colors = {"관광지":"blue", "음식점":"red", "숙박":"green", "문화시설":"purple", "레포츠":"orange", "쇼핑":"cadetblue"}
             for _, item in markers.iterrows():
                 name = escape(str(item.get("title", "이름 없음")))
@@ -180,13 +203,22 @@ elif page == "🗺️ 관광지 검색·지도":
                 address = escape(str(item.get("addr1", "주소 정보 없음")))
                 area = escape(str(item.get("지역", "")))
                 tooltip = folium.Tooltip(f"<b>{name}</b><br>{area} · {kind}<br>{address}", sticky=True)
-                detail = folium.Popup(f"<div style='font-size:13px;width:250px'><b>{name}</b><hr style='margin:6px 0'>{area} · {kind}<br>{address}</div>", max_width=320)
+                detail = folium.Popup(
+                    f"<div style='font-size:13px;width:260px'><b>{name}</b><hr style='margin:6px 0'>{area} · {kind}<br>{address}</div>",
+                    max_width=330,
+                )
                 folium.Marker(
                     location=[float(item["위도"]), float(item["경도"])],
                     tooltip=tooltip, popup=detail,
                     icon=folium.Icon(color=colors.get(str(item.get("유형")), "gray"), icon="info-sign"),
-                ).add_to(m)
-            components.html(m.get_root().render(), height=550, scrolling=False)
+                ).add_to(clusters)
+            # 지역 필터에 따라 시작 위치만 바꾸되 확대/축소 범위는 전남·광주로 제한
+            if region == "광주":
+                m.location = [35.16, 126.85]
+            elif region == "전남":
+                m.location = [34.82, 126.85]
+            components.html(m.get_root().render(), height=555, scrolling=False)
+            st.caption("숫자가 표시된 원은 인접 관광지 묶음입니다. 클릭하면 확대되며, 개별 마커에 마우스를 올리면 관광지 설명이 표시됩니다.")
             if len(loc) > len(markers):
                 st.caption(f"지도 성능을 위해 앞의 {len(markers):,}개 위치만 표시했습니다. 필터를 사용하면 검색 결과에 맞게 갱신됩니다.")
         else:
