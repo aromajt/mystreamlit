@@ -39,10 +39,11 @@ def load_csv(name):
 places = load_csv("tourism_places.csv")
 stay = load_csv("tourism_stay_demand.csv")
 spend = load_csv("tourism_spend_demand.csv")
+visitors = load_csv("tourism_visitors.csv")
 
 st.sidebar.markdown("## 🌿 남도ON")
 st.sidebar.caption("전남·광주 공공 관광데이터")
-page = st.sidebar.radio("분석 메뉴", ["📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "📚 데이터 출처"], label_visibility="collapsed")
+page = st.sidebar.radio("분석 메뉴", ["📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "👥 방문자 분석", "📚 데이터 출처"], label_visibility="collapsed")
 st.sidebar.divider()
 st.sidebar.info("수집 기준: 공공데이터포털 관광 API\n\n수요 분석: 2025.09 ~ 2026.06")
 
@@ -168,6 +169,7 @@ elif page == "🗺️ 관광지 검색·지도":
         if not loc.empty:
             st.map(loc.rename(columns={"위도":"lat","경도":"lon"})[["lat","lon"]].head(900),zoom=7 if region=="전체" else 9)
         else:st.info("표시 가능한 위치 좌표가 없습니다.")
+        st.download_button("검색 결과 CSV 내려받기", data=df.to_csv(index=False).encode("utf-8-sig"), file_name="namdo_places_filtered.csv", mime="text/csv")
         st.markdown("#### 관광 콘텐츠")
         max_count=min(len(df),36)
         for start in range(0,max_count,3):
@@ -181,10 +183,31 @@ elif page == "🗺️ 관광지 검색·지도":
                         st.markdown("**"+str(item["title"])+"**")
                         st.caption(f"{item['지역']} · {item['유형']}")
                         st.caption(str(item.get("addr1","") or "주소 없음"))
+                        with st.expander("상세정보 및 위치"):
+                            st.write("콘텐츠 ID:", item.get("contentid", "-"))
+                            st.write("주소:", item.get("addr1", "-"))
+                            if pd.notna(item.get("addr2")) and str(item.get("addr2")).strip():
+                                st.write("상세주소:", item.get("addr2"))
+                            if bool(item["지도표시"]):
+                                lat, lon = float(item["위도"]), float(item["경도"])
+                                st.link_button("구글 지도에서 위치 확인", f"https://www.google.com/maps/search/?api=1&query={lat},{lon}", width="stretch")
+                            else:
+                                st.caption("유효하지 않은 좌표로 지도 링크를 제공하지 않습니다.")
+                            st.caption("운영시간과 요금은 현재 수집 CSV에 포함되어 있지 않습니다.")
         if len(df)>max_count:st.caption(f"화면 성능을 위해 검색 결과 중 상위 {max_count}개 카드만 표시합니다. 검색어로 범위를 좁혀 주세요.")
 
 elif page == "🌙 체류 강도 분석": demand_ui(stay,"체류 강도")
 elif page == "💳 소비 강도 분석": demand_ui(spend,"소비 강도")
+elif page == "👥 방문자 분석":
+    st.markdown('<div class="section-title">지역별 방문자 분석</div>', unsafe_allow_html=True)
+    if visitors.empty:
+        st.info("방문자 수 CSV는 아직 수집 전입니다. 다른 분석 메뉴는 정상 이용할 수 있습니다.")
+        st.write("예정 데이터 파일: `data/tourism_visitors.csv`")
+        st.markdown("[한국관광공사 지역별 방문자 수 API](https://www.data.go.kr/data/15101972/openapi.do)")
+    else:
+        st.success(f"방문자 자료 {len(visitors):,}행을 불러왔습니다.")
+        st.dataframe(visitors.head(1000), width="stretch", hide_index=True)
+        st.caption("원자료의 집계 단위와 필드명을 검토한 다음 월별 차트를 연결할 예정입니다.")
 else:
     st.markdown('<div class="section-title">데이터 출처 및 이용 안내</div>',unsafe_allow_html=True)
     st.markdown("""- **관광 콘텐츠**: [한국관광공사 국문 관광정보 서비스](https://www.data.go.kr/data/15101578/openapi.do) · `areaBasedList2`
@@ -192,6 +215,7 @@ else:
 - **분석 기간**: 수요 시군구 자료 2025년 9월~2026년 6월. 2026년 7월 자료 미수집/미제공, 8월은 일부 광역 단위만 있어 시계열에서 제외
 - **지표 주의사항**: 공공데이터 API의 가공된 강도 지표이며 방문자 수·매출 합계가 아닙니다. 지표별 산식·단위는 원 API 매뉴얼을 참조하세요.
 - **관광 콘텐츠**: 특정 API 조회 기준의 데이터이며 지역 내 모든 관광시설을 포괄하지 않을 수 있습니다.
+- **방문자 분석**: [한국관광공사 지역별 방문자 수](https://www.data.go.kr/data/15101972/openapi.do) · CSV 수집 이후 연계
 """)
     st.markdown("#### 실제 앱에서 불러온 파일")
     for name,df in (("tourism_places.csv",places),("tourism_stay_demand.csv",stay),("tourism_spend_demand.csv",spend)):
