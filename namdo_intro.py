@@ -2,6 +2,7 @@
 import html
 import pandas as pd
 import streamlit as st
+from namdo_overview import show_overview
 
 MENU = {
     "현황": "📊 관광 종합현황",
@@ -53,6 +54,7 @@ def show_intro(places: pd.DataFrame, stay: pd.DataFrame, spend: pd.DataFrame):
     k4.metric('수요 분석 기간',f'{len(months)}개월')
     st.caption('관광 콘텐츠는 한국관광공사 API 수집 건수입니다. 분석기간은 확보된 수요 데이터의 2025.09~2026.06 구간 기준입니다.')
 
+    show_overview(places,stay,spend)
     st.markdown('<div class="intro-heading">한눈에 보는 주요 기능</div>',unsafe_allow_html=True)
     st.markdown('<div class="intro-sub">각 기능에서 실제 수집 데이터에 대한 차트·검색·상세정보를 확인할 수 있습니다.</div>',unsafe_allow_html=True)
     cards = [

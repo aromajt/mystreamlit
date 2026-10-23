@@ -44,10 +44,11 @@ def load_csv(name):
 places = load_csv("tourism_places.csv")
 stay = load_csv("tourism_stay_demand.csv")
 spend = load_csv("tourism_spend_demand.csv")
+visitors = load_csv("tourism_visitors.csv")
 
 st.sidebar.markdown("## 🌿 남도ON")
 st.sidebar.caption("전남·광주 공공 관광데이터")
-page = st.sidebar.radio("분석 메뉴", ["🏠 남도ON 소개", "📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "📚 데이터 출처"], label_visibility="collapsed", key="namdo_navigation")
+page = st.sidebar.radio("분석 메뉴", ["🏠 남도ON 소개", "📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "👥 방문자 분석", "📚 데이터 출처"], label_visibility="collapsed", key="namdo_navigation")
 st.sidebar.divider()
 st.sidebar.info("수집 기준: 공공데이터포털 관광 API\n\n수요 분석: 2025.09 ~ 2026.06")
 
@@ -189,6 +190,23 @@ elif page == "🗺️ 관광지 검색·지도":
                 min_lon=124.8, max_lon=129.0,
                 prefer_canvas=True,
             )
+            # 선택적 한국어 지도. 지도 스타일은 MapTiler에서 Korean으로 지정합니다.
+            # API 키가 없으면 기존 OSM 지도를 사용합니다.
+            try:
+                maptiler_key = st.secrets.get("MAPTILER_API_KEY", "")
+                maptiler_id = st.secrets.get("MAPTILER_MAP_ID", "")
+            except Exception:
+                maptiler_key, maptiler_id = "", ""
+            if maptiler_key and maptiler_id:
+                folium.TileLayer(
+                    tiles=f"https://api.maptiler.com/maps/{maptiler_id}/{{z}}/{{x}}/{{y}}.png?key={maptiler_key}",
+                    attr="© MapTiler © OpenStreetMap contributors", name="한국어 지도",
+                    overlay=False, control=True
+                ).add_to(m)
+                for lyr in m._children.values():
+                    if isinstance(lyr, folium.raster_layers.TileLayer) and lyr.layer_name == "openstreetmap":
+                        lyr.show = False
+                folium.LayerControl(collapsed=True).add_to(m)
             Fullscreen(position="topright").add_to(m)
             clusters = MarkerCluster(
                 name="관광 콘텐츠",
@@ -227,6 +245,7 @@ elif page == "🗺️ 관광지 검색·지도":
                 st.caption(f"지도 성능을 위해 앞의 {len(markers):,}개 위치만 표시했습니다. 필터를 사용하면 검색 결과에 맞게 갱신됩니다.")
         else:
             st.info("표시 가능한 위치 좌표가 없습니다.")
+        st.download_button("검색 결과 CSV 내려받기", df.to_csv(index=False).encode("utf-8-sig"), "namdo_places_filtered.csv", "text/csv")
         st.markdown("#### 관광 콘텐츠")
         max_count=min(len(df),36)
         for start in range(0,max_count,3):
@@ -240,10 +259,29 @@ elif page == "🗺️ 관광지 검색·지도":
                         st.markdown("**"+str(item["title"])+"**")
                         st.caption(f"{item['지역']} · {item['유형']}")
                         st.caption(str(item.get("addr1","") or "주소 없음"))
+                        with st.expander("상세정보 보기"):
+                            st.write("콘텐츠 ID:", item.get("contentid", "-"))
+                            st.write("주소:", item.get("addr1", "-"))
+                            if pd.notna(item.get("addr2")) and str(item.get("addr2")).strip():
+                                st.write("상세주소:", item.get("addr2"))
+                            if bool(item.get("지도표시")):
+                                lat,lon=float(item["위도"]),float(item["경도"])
+                                st.link_button("지도에서 보기", f"https://www.google.com/maps/search/?api=1&query={lat},{lon}",width="stretch")
+                            st.caption("운영시간·입장료·상세 설명은 현재 관광정보 CSV에 없습니다.")
+
         if len(df)>max_count:st.caption(f"화면 성능을 위해 검색 결과 중 상위 {max_count}개 카드만 표시합니다. 검색어로 범위를 좁혀 주세요.")
 
 elif page == "🌙 체류 강도 분석": demand_ui(stay,"체류 강도")
 elif page == "💳 소비 강도 분석": demand_ui(spend,"소비 강도")
+elif page == "👥 방문자 분석":
+    st.markdown("### 👥 지역별 방문자 데이터")
+    if visitors.empty:
+        st.info("방문자 수 API 자료를 아직 수집하지 않았습니다. 자료가 확보되면 이 메뉴에서 확인할 수 있습니다.")
+        st.markdown("[원자료: 한국관광공사 지역별 방문자 수 API](https://www.data.go.kr/data/15101972/openapi.do)")
+    else:
+        st.success(f"CSV 로딩 완료: {len(visitors):,}행")
+        st.dataframe(visitors.head(1000),width="stretch",hide_index=True)
+        st.warning("방문자 수는 이동통신 기반 일별 순방문자 추정치입니다. 시군구와 광역 합계를 임의로 더하지 마세요. 컬럼/단위 확인 후 월별 추이 차트를 적용합니다.")
 else:
     st.markdown('<div class="section-title">데이터 출처 및 이용 안내</div>',unsafe_allow_html=True)
     st.markdown("""- **관광 콘텐츠**: [한국관광공사 국문 관광정보 서비스](https://www.data.go.kr/data/15101578/openapi.do) · `areaBasedList2`
