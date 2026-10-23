@@ -3,6 +3,7 @@ import html
 import pandas as pd
 import streamlit as st
 from namdo_overview import show_overview
+from namdo_visitors import show_visitor_intro
 
 MENU = {
     "현황": "📊 관광 종합현황",
@@ -17,7 +18,7 @@ def _move(target):
     st.session_state["namdo_navigation"] = target
 
 
-def show_intro(places: pd.DataFrame, stay: pd.DataFrame, spend: pd.DataFrame):
+def show_intro(places: pd.DataFrame, stay: pd.DataFrame, spend: pd.DataFrame, visitors=None):
     st.markdown("""<style>
     .intro-heading {font-size:23px;font-weight:800;color:#143b55;margin:25px 0 13px}
     .intro-sub {font-size:13px;color:#61798d;margin-top:-7px;margin-bottom:18px}
@@ -55,6 +56,8 @@ def show_intro(places: pd.DataFrame, stay: pd.DataFrame, spend: pd.DataFrame):
     st.caption('관광 콘텐츠는 한국관광공사 API 수집 건수입니다. 분석기간은 확보된 수요 데이터의 2025.09~2026.06 구간 기준입니다.')
 
     show_overview(places,stay,spend)
+    if visitors is not None:
+        show_visitor_intro(visitors)
     st.markdown('<div class="intro-heading">한눈에 보는 주요 기능</div>',unsafe_allow_html=True)
     st.markdown('<div class="intro-sub">각 기능에서 실제 수집 데이터에 대한 차트·검색·상세정보를 확인할 수 있습니다.</div>',unsafe_allow_html=True)
     cards = [

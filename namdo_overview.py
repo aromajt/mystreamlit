@@ -36,7 +36,7 @@ def show_overview(places, stay, spend):
             code_col='tarSjrnDsIxCd' if frame is stay else 'tarExpDsIxCd'
             d=frame.copy()
             d=d[(d['baseYm'].astype(str).between('202509','202606')) &
-                (d['signguCd'].astype(str).str.replace(r'\\.0$','',regex=True)=='0') &
+                (d['signguCd'].astype(str).str.replace(r'\.0$','',regex=True)=='0') &
                 (d[code_col].astype(str)==code)]
             if d.empty:
                 st.info(f'{title}: 광역 합계 데이터 없음')

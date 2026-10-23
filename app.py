@@ -1,5 +1,6 @@
 """남도ON | 전남·광주 관광 데이터 대시보드. 실행: streamlit run app.py"""
 from namdo_intro import show_intro
+from namdo_visitors import show_visitor_analysis
 from pathlib import Path
 from html import escape
 import folium
@@ -52,7 +53,8 @@ page = st.sidebar.radio("분석 메뉴", ["🏠 남도ON 소개", "📊 관광 �
 st.sidebar.divider()
 st.sidebar.info("수집 기준: 공공데이터포털 관광 API\n\n수요 분석: 2025.09 ~ 2026.06")
 
-st.markdown('<div class="hero"><div class="eyebrow">NAMDO ON · TOURISM INTELLIGENCE</div><h1>전남·광주 관광 데이터 대시보드</h1><p>공공데이터로 살펴보는 관광 콘텐츠, 지역별 체류 특성, 관광 소비 강도</p></div>', unsafe_allow_html=True)
+if page != "🏠 남도ON 소개":
+    st.markdown('<div class="hero"><div class="eyebrow">NAMDO ON · TOURISM INTELLIGENCE</div><h1>전남·광주 관광 데이터 대시보드</h1><p>공공데이터로 살펴보는 관광 콘텐츠, 지역별 체류 특성, 관광 소비 강도</p></div>', unsafe_allow_html=True)
 
 if places.empty and stay.empty and spend.empty:
     st.error("관광 데이터 CSV를 찾지 못했습니다. GitHub 저장소의 app.py와 같은 위치에 data/ 폴더 및 CSV 3개를 업로드해 주세요.")
@@ -126,17 +128,25 @@ def demand_ui(df, kind):
         chart_df = filt[filt["비교지역"].isin(top)]
     else:
         chart_df=filt
-    fig=px.line(chart_df.sort_values("월"),x="월",y="값",color="비교지역",markers=True,color_discrete_sequence=PALETTE, labels={"월":"기준 월","값":"강도 지표값","비교지역":"지역"})
+    chart_df = chart_df.copy()
+    chart_df["기준월"] = chart_df["월"].astype(str).str[:4] + "." + chart_df["월"].astype(str).str[4:6]
+    months_sorted = sorted(chart_df["기준월"].dropna().unique().tolist())
+    fig=px.line(chart_df.sort_values("월"),x="기준월",y="값",color="비교지역",markers=True,
+                category_orders={"기준월":months_sorted},color_discrete_sequence=PALETTE,
+                labels={"기준월":"기준월 (YYYY.MM)","값":"관광 수요 강도 지표값","비교지역":"지역"})
+    fig.update_xaxes(type="category",categoryorder="array",categoryarray=months_sorted,tickangle=-40)
     st.plotly_chart(plot_style(fig,390),width="stretch")
     st.markdown("#### 최근 월 지역별 비교")
     rank=latest_data.sort_values("값",ascending=False)
     fig2=px.bar(rank.head(20),x="값",y="비교지역",orientation="h",color="지역",color_discrete_map={"전남":"#087c91","광주":"#e99b4b"},labels={"값":"강도 지표값","비교지역":"지역"})
     fig2.update_layout(yaxis=dict(categoryorder="total ascending"))
     st.plotly_chart(plot_style(fig2,max(320,22*min(20,len(rank))+90)),width="stretch")
-    st.dataframe(filt[["월","지역","signguNm",code_col,"값"]].sort_values(["월","지역"],ascending=[False,True]),width="stretch",hide_index=True)
+    detail = filt[["월","지역","signguNm",code_col,"값"]].sort_values(["월","지역"],ascending=[False,True]).copy()
+    detail["월"] = detail["월"].astype(str).str[:4] + "." + detail["월"].astype(str).str[4:6]
+    st.dataframe(detail,width="stretch",hide_index=True)
 
 if page == "🏠 남도ON 소개":
-    show_intro(places, stay, spend)
+    show_intro(places, stay, spend, visitors)
 
 elif page == "📊 관광 종합현황":
     st.markdown('<div class="section-title">관광 종합현황</div><div class="section-desc">관광정보 API에 등록된 콘텐츠 현황입니다. 실제 관광자원 총량을 의미하지는 않습니다.</div>',unsafe_allow_html=True)
@@ -274,14 +284,8 @@ elif page == "🗺️ 관광지 검색·지도":
 elif page == "🌙 체류 강도 분석": demand_ui(stay,"체류 강도")
 elif page == "💳 소비 강도 분석": demand_ui(spend,"소비 강도")
 elif page == "👥 방문자 분석":
-    st.markdown("### 👥 지역별 방문자 데이터")
-    if visitors.empty:
-        st.info("방문자 수 API 자료를 아직 수집하지 않았습니다. 자료가 확보되면 이 메뉴에서 확인할 수 있습니다.")
-        st.markdown("[원자료: 한국관광공사 지역별 방문자 수 API](https://www.data.go.kr/data/15101972/openapi.do)")
-    else:
-        st.success(f"CSV 로딩 완료: {len(visitors):,}행")
-        st.dataframe(visitors.head(1000),width="stretch",hide_index=True)
-        st.warning("방문자 수는 이동통신 기반 일별 순방문자 추정치입니다. 시군구와 광역 합계를 임의로 더하지 마세요. 컬럼/단위 확인 후 월별 추이 차트를 적용합니다.")
+    show_visitor_analysis(visitors)
+
 else:
     st.markdown('<div class="section-title">데이터 출처 및 이용 안내</div>',unsafe_allow_html=True)
     st.markdown("""- **관광 콘텐츠**: [한국관광공사 국문 관광정보 서비스](https://www.data.go.kr/data/15101578/openapi.do) · `areaBasedList2`
@@ -289,9 +293,12 @@ else:
 - **분석 기간**: 수요 시군구 자료 2025년 9월~2026년 6월. 2026년 7월 자료 미수집/미제공, 8월은 일부 광역 단위만 있어 시계열에서 제외
 - **지표 주의사항**: 공공데이터 API의 가공된 강도 지표이며 방문자 수·매출 합계가 아닙니다. 지표별 산식·단위는 원 API 매뉴얼을 참조하세요.
 - **관광 콘텐츠**: 특정 API 조회 기준의 데이터이며 지역 내 모든 관광시설을 포괄하지 않을 수 있습니다.
+- **방문자 추정치**: [한국관광공사 지역별 방문자 수](https://www.data.go.kr/data/15101972/openapi.do) · 관광빅데이터 API v4.1의 `metcoRegnVisitrDDList`(광역), `locgoRegnVisitrDDList`(시군구). 2025.09.01~2026.06.30 일별 이동통신 기반 추정치.
+- **방문자 수 집계 주의**: 월별 값은 **일별 추정 방문자 수 합계**이며 월간 고유 방문자 수가 아닙니다. 현지인·외지인·외국인 구분을 사용하며 광역과 시군구 자료를 중복 합산하지 않습니다.
+- **공통 유의사항**: 서로 다른 출처의 강도 지표값과 방문자 수를 단순 합산하거나 동일 단위로 비교하지 않습니다.
 """)
     st.markdown("#### 실제 앱에서 불러온 파일")
-    for name,df in (("tourism_places.csv",places),("tourism_stay_demand.csv",stay),("tourism_spend_demand.csv",spend)):
+    for name,df in (("tourism_places.csv",places),("tourism_stay_demand.csv",stay),("tourism_spend_demand.csv",spend),("tourism_visitors.csv",visitors)):
         st.write(f"`data/{name}` · **{len(df):,}행**" if not df.empty else f"`data/{name}` · 파일 없음")
 
 st.divider()
