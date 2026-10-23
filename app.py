@@ -1,4 +1,5 @@
 """남도ON | 전남·광주 관광 데이터 대시보드. 실행: streamlit run app.py"""
+from namdo_intro import show_intro
 from pathlib import Path
 from html import escape
 import folium
@@ -46,7 +47,7 @@ spend = load_csv("tourism_spend_demand.csv")
 
 st.sidebar.markdown("## 🌿 남도ON")
 st.sidebar.caption("전남·광주 공공 관광데이터")
-page = st.sidebar.radio("분석 메뉴", ["📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "📚 데이터 출처"], label_visibility="collapsed")
+page = st.sidebar.radio("분석 메뉴", ["🏠 남도ON 소개", "📊 관광 종합현황", "🗺️ 관광지 검색·지도", "🌙 체류 강도 분석", "💳 소비 강도 분석", "📚 데이터 출처"], label_visibility="collapsed", key="namdo_navigation")
 st.sidebar.divider()
 st.sidebar.info("수집 기준: 공공데이터포털 관광 API\n\n수요 분석: 2025.09 ~ 2026.06")
 
@@ -133,7 +134,10 @@ def demand_ui(df, kind):
     st.plotly_chart(plot_style(fig2,max(320,22*min(20,len(rank))+90)),width="stretch")
     st.dataframe(filt[["월","지역","signguNm",code_col,"값"]].sort_values(["월","지역"],ascending=[False,True]),width="stretch",hide_index=True)
 
-if page == "📊 관광 종합현황":
+if page == "🏠 남도ON 소개":
+    show_intro(places, stay, spend)
+
+elif page == "📊 관광 종합현황":
     st.markdown('<div class="section-title">관광 종합현황</div><div class="section-desc">관광정보 API에 등록된 콘텐츠 현황입니다. 실제 관광자원 총량을 의미하지는 않습니다.</div>',unsafe_allow_html=True)
     if places.empty: st.warning("관광정보 CSV가 없습니다.")
     else:
