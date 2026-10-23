@@ -43,9 +43,19 @@ def show_overview(places, stay, spend):
                 continue
             d['val']=pd.to_numeric(d[value],errors='coerce')
             d=d.dropna(subset=['val'])
-            fig=px.line(d,x='baseYm',y='val',color='수집권역',markers=True,
+            # YYYYMM을 숫자축으로 사용하면 2025.12~2026.01 간격이 왜곡됩니다.
+            # 따라서 YYYY.MM 문자열을 고정된 순서의 범주축으로 표시합니다.
+            d['기준월표시'] = (d['baseYm'].astype(str).str[:4] + '.'
+                               + d['baseYm'].astype(str).str[4:6])
+            d = d.sort_values('baseYm')
+            month_order = sorted(d['기준월표시'].dropna().unique())
+            fig=px.line(d,x='기준월표시',y='val',color='수집권역',markers=True,
+                        category_orders={'기준월표시':month_order},
                         color_discrete_map={'전남':'#087c91','광주':'#e99b4b'},
-                        labels={'baseYm':'기준월','val':'강도 지표값','수집권역':'지역'})
-            fig.update_layout(title=title,height=320,margin=dict(l=10,r=10,t=55,b=10))
+                        labels={'기준월표시':'기준월','val':'관광 수요 강도 지표값','수집권역':'지역'})
+            fig.update_xaxes(type='category',categoryorder='array',categoryarray=month_order,
+                             tickangle=-35)
+            fig.update_layout(title=f'{title} · 2025.09~2026.06',height=320,
+                              margin=dict(l=10,r=10,t=55,b=35))
             st.plotly_chart(fig,width='stretch')
     st.caption('관광 콘텐츠는 API 등록 건수, 수요 지표는 가공된 강도 값입니다. 서로 합산하거나 실방문자 수로 해석하지 않습니다.')
